@@ -1,0 +1,8 @@
+[package]
+name = "ecdh"
+version = "0.1.0"
+authors = ["Tom Conroy <tjc25614@outlook.com>"]
+edition = "2018"
+
+[dependencies]
+num-bigint = "0.2.2"
