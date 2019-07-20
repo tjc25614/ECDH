@@ -90,7 +90,7 @@ impl EllipticCurve {
             Point::Inf => p2.clone(),
             Point::Pair { x: x1, y: y1 } => {
                 match p2 {
-                    Point::Inf => p2.clone(),
+                    Point::Inf => p1.clone(),
                     Point::Pair { x: x2, y: y2 } => {
                         let delta = (&self.p + y2 - y1) *
                             inverse_mod_p(&self.p + x2 - x1, &self.p);
@@ -106,6 +106,28 @@ impl EllipticCurve {
                 }
             }
         }
+    }
+
+    fn point_multiply(&self, x: &BigUint, point: &Point) -> Point {
+        let bytes = x.to_bytes_be();
+        let mut started = false;
+        let mut result_point: Point = point.clone();
+        for byte in bytes {
+            for i in 0..8 {
+                if started {
+                    result_point = self.point_double(&result_point);
+                    if byte & (1 << (7 - i)) != 0 {
+                        result_point = self.point_add(&result_point, point);
+                    }
+                } else {
+                    if byte & (1 << (7 - i)) != 0 {
+                        started = true;
+                    }
+                }
+                println!("{:?}", result_point);
+            }
+        }
+        result_point
     }
 }
 
@@ -223,5 +245,21 @@ mod tests {
         let point3 = Point::Pair {x: BigUint::new(vec!(8)), y: BigUint::new(vec!(3)) };
         assert_eq!(curve.point_add(&point1, &point2), point3);
         assert_eq!(curve.point_add(&point2, &point2), point1);
+    }
+
+    #[test]
+    fn test_point_multiply() {
+        let a = BigUint::new(vec!(1));
+        let b = BigUint::new(vec!(6));
+        let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
+        let p = BigUint::new(vec!(11));
+        let curve = EllipticCurve::new(a, b, g, p);
+        let x = BigUint::new(vec!(2));
+        let point1 = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
+        let point2 = Point::Pair {x: BigUint::new(vec!(5)), y: BigUint::new(vec!(2)) };
+        assert_eq!(curve.point_multiply(&x, &point1), point2);
+        let y = BigUint::new(vec!(9));
+        let point3 = Point::Pair {x: BigUint::new(vec!(10)), y: BigUint::new(vec!(9)) };
+        assert_eq!(curve.point_multiply(&y, &point1), point3);
     }
 }
