@@ -129,6 +129,19 @@ impl EllipticCurve {
         }
         result_point
     }
+
+    fn dh_public_from_private(&self, private_key: &BigUint) -> Point {
+        self.point_multiply(private_key, &self.g)
+    }
+
+    fn dh_derive_shared_secret( &self,
+                                private_key: &BigUint,
+                                other_public_key: &Point) -> Result<BigUint, &'static str> {
+        match self.point_multiply(private_key, other_public_key) {
+            Point::Inf => Err(""),
+            Point::Pair{ x, y: _y } => Ok(x)
+        }
+    }
 }
 
 /// Function `inverse_mod_p`
@@ -261,5 +274,31 @@ mod tests {
         let y = BigUint::new(vec!(9));
         let point3 = Point::Pair {x: BigUint::new(vec!(10)), y: BigUint::new(vec!(9)) };
         assert_eq!(curve.point_multiply(&y, &point1), point3);
+    }
+
+    #[test]
+    fn test_real_curve() {
+        let secp256k1: EllipticCurve = EllipticCurve::new(
+            BigUint::new(vec!(0)),
+            BigUint::new(vec!(7)),
+            Point::Pair {
+                x: BigUint::parse_bytes(
+                    b"79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+                    16).unwrap(),
+                y: BigUint::parse_bytes(
+                    b"483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+                    16).unwrap() },
+            BigUint::parse_bytes(
+                b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", 16).unwrap());
+        let x = BigUint::new(vec!(20));
+        let y = BigUint::parse_bytes(
+            b"4CE119C96E2FA357200B559B2F7DD5A5F02D5290AFF74B03F3E471B273211C97", 16).unwrap();
+        let res = secp256k1.dh_public_from_private(&x);
+        match res {
+            Point::Inf => panic!("Incorrect result"),
+            Point::Pair {x: res_x, y: _res_y } => {
+                assert_eq!(res_x, y);
+            }
+        }
     }
 }
