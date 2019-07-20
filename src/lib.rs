@@ -92,6 +92,10 @@ impl EllipticCurve {
                 match p2 {
                     Point::Inf => p1.clone(),
                     Point::Pair { x: x2, y: y2 } => {
+                        // check if p1 = -p2
+                        if x1 == x2 {
+                            return Point::Inf;
+                        }
                         let delta = (&self.p + y2 - y1) *
                             inverse_mod_p(&self.p + x2 - x1, &self.p);
 
@@ -124,7 +128,6 @@ impl EllipticCurve {
                         started = true;
                     }
                 }
-                println!("{:?}", result_point);
             }
         }
         result_point
@@ -300,5 +303,24 @@ mod tests {
                 assert_eq!(res_x, y);
             }
         }
+
+        let x2 = BigUint::parse_bytes(
+            b"112233445566778899112233445566778899", 10).unwrap();
+        let y2 = BigUint::parse_bytes(
+            b"E5A2636BCFD412EBF36EC45B19BFB68A1BC5F8632E678132B885F7DF99C5E9B3", 16).unwrap();
+        let res2 = secp256k1.dh_public_from_private(&x2);
+        match res2 {
+            Point::Inf => panic!("Incorrect result"),
+            Point::Pair {x: res_x, y: _res_y } => {
+                assert_eq!(res_x, y2);
+            }
+        }
+
+        // test size of cyclic group, must return point at infinity
+        let n = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141", 16).unwrap();
+
+        let res3 = secp256k1.dh_public_from_private(&n);
+        assert_eq!(res3, Point::Inf);
     }
 }
