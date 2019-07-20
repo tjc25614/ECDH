@@ -1,10 +1,13 @@
 
 use num_bigint::BigUint;
+use num_bigint::BigInt;
+use num_bigint::Sign;
+use std::mem;
 
 /// enum `Point`
 /// Point on an Elliptic Curve
 /// Can either be a `(x, y)` pair or the point at infinity `Inf`
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 enum Point {
     Inf,
     Pair { x: BigUint, y: BigUint },
@@ -55,6 +58,80 @@ impl EllipticCurve {
             a, b, g, p
         }
     }
+
+    fn point_double(&self, point: &Point) -> Point {
+        match point {
+            Point::Inf => Point::Inf,
+            Point::Pair { x, y } => {
+                let delta = (BigUint::new(vec!(3)) * x * x + &self.a) *
+                    inverse_mod_p(BigUint::new(vec!(2)) * y, &self.p);
+                let mut new_x = &delta * &delta;
+                let double_x = BigUint::new(vec!(2)) * x;
+                if double_x > new_x {
+                    new_x += ((&double_x / &self.p) + BigUint::new(vec!(1))) * &self.p;
+                }
+                new_x -= double_x;
+                new_x %= &self.p;
+
+                let mut new_y = &delta * (&self.p + x - &new_x);
+                new_y += &self.p - y;
+                new_y %= &self.p;
+
+                Point::Pair { x: new_x, y: new_y }
+            }
+        }
+    }
+
+    fn point_add(&self, p1: &Point, p2: &Point) -> Point {
+        if p1 == p2 {
+            return self.point_double(p1);
+        }
+        match p1 {
+            Point::Inf => p2.clone(),
+            Point::Pair { x: x1, y: y1 } => {
+                match p2 {
+                    Point::Inf => p2.clone(),
+                    Point::Pair { x: x2, y: y2 } => {
+                        let delta = (&self.p + y2 - y1) *
+                            inverse_mod_p(&self.p + x2 - x1, &self.p);
+
+                        let mut new_x = (&delta * &delta) + &self.p - x1 + &self.p - x2;
+                        new_x %= &self.p;
+
+                        let mut new_y = &self.p + (&delta * (&self.p + x1 - &new_x)) - y1;
+                        new_y %= &self.p;
+
+                        Point::Pair { x: new_x, y: new_y }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Function `inverse_mod_p`
+/// Calculates x^-1 mod p such that x * x^-1 mod p = 1
+fn inverse_mod_p(x: BigUint, p: &BigUint) -> BigUint {
+    let xmod_p = x % p;
+    let signed_zero = BigInt::new(Sign::NoSign, vec![0]);
+    let one = BigUint::new(vec!(1));
+    let signed_p = BigInt::from_biguint(Sign::Plus, p.clone());
+    let mut last: (BigUint, BigInt) = (p.clone(), signed_zero.clone());
+    let mut current: (BigUint, BigInt) = (xmod_p, BigInt::new(Sign::Plus, vec![1]));
+    let mut next: (BigUint, BigInt);
+    while current.0 != one {
+        let q = &last.0 / &current.0;
+        let r = &last.0 % &current.0;
+        next = (r, last.1 - (BigInt::from_biguint(Sign::Plus, q) * &current.1));
+        last = mem::replace(&mut current, next);
+    }
+
+    let mut result = current.1;
+    while result < signed_zero {
+        result += &signed_p;
+    }
+    result %= &signed_p;
+    result.to_biguint().unwrap()
 }
 
 #[cfg(test)]
@@ -85,7 +162,7 @@ mod tests {
         let b = BigUint::new(vec!(6));
         let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(3)) };
         let p = BigUint::new(vec!(11));
-        let curve = EllipticCurve::new(a, b, g, p);
+        let _curve = EllipticCurve::new(a, b, g, p);
     }
 
     #[test]
@@ -96,7 +173,7 @@ mod tests {
         let b = BigUint::new(vec!(2));
         let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(3)) };
         let p = BigUint::new(vec!(11));
-        let curve = EllipticCurve::new(a, b, g, p);
+        let _curve = EllipticCurve::new(a, b, g, p);
     }
 
     #[test]
@@ -106,6 +183,45 @@ mod tests {
         let b = BigUint::new(vec!(2));
         let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(3)) };
         let p = BigUint::new(vec!(11));
+        let _curve = EllipticCurve::new(a, b, g, p);
+    }
+
+    #[test]
+    fn test_inverse_mod_p() {
+        let x = BigUint::new(vec!(5));
+        let p = BigUint::new(vec!(17));
+        assert_eq!(inverse_mod_p(x, &p), BigUint::new(vec!(7)));
+
+        let x = BigUint::new(vec!(5));
+        let p = BigUint::new(vec!(11));
+        assert_eq!(inverse_mod_p(x, &p), BigUint::new(vec!(9)));
+    }
+
+    #[test]
+    fn test_point_double() {
+        // produce toy elliptic curve
+        let a = BigUint::new(vec!(1));
+        let b = BigUint::new(vec!(6));
+        let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
+        let p = BigUint::new(vec!(11));
         let curve = EllipticCurve::new(a, b, g, p);
+        let point1 = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
+        let point2 = Point::Pair {x: BigUint::new(vec!(5)), y: BigUint::new(vec!(2)) };
+        assert_eq!(curve.point_double(&point1), point2);
+        assert_eq!(curve.point_double(&Point::Inf), Point::Inf);
+    }
+
+    #[test]
+    fn test_point_add() {
+        let a = BigUint::new(vec!(1));
+        let b = BigUint::new(vec!(6));
+        let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
+        let p = BigUint::new(vec!(11));
+        let curve = EllipticCurve::new(a, b, g, p);
+        let point1 = Point::Pair {x: BigUint::new(vec!(5)), y: BigUint::new(vec!(2)) };
+        let point2 = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
+        let point3 = Point::Pair {x: BigUint::new(vec!(8)), y: BigUint::new(vec!(3)) };
+        assert_eq!(curve.point_add(&point1, &point2), point3);
+        assert_eq!(curve.point_add(&point2, &point2), point1);
     }
 }
