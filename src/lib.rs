@@ -1,7 +1,8 @@
-
 use num_bigint::BigUint;
 use num_bigint::BigInt;
 use num_bigint::Sign;
+use num_bigint::RandBigInt;
+use rand::prelude::*;
 use std::mem;
 
 /// enum `Point`
@@ -293,28 +294,22 @@ mod tests {
                     16).unwrap() },
             BigUint::parse_bytes(
                 b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", 16).unwrap());
-        let x = BigUint::new(vec!(20));
-        let y = BigUint::parse_bytes(
+        let k = BigUint::new(vec!(20));
+        let x = BigUint::parse_bytes(
             b"4CE119C96E2FA357200B559B2F7DD5A5F02D5290AFF74B03F3E471B273211C97", 16).unwrap();
-        let res = secp256k1.dh_public_from_private(&x);
-        match res {
-            Point::Inf => panic!("Incorrect result"),
-            Point::Pair {x: res_x, y: _res_y } => {
-                assert_eq!(res_x, y);
-            }
-        }
+        let y = BigUint::parse_bytes(
+            b"12BA26DCB10EC1625DA61FA10A844C676162948271D96967450288EE9233DC3A", 16).unwrap();
+        let res = secp256k1.dh_public_from_private(&k);
+        assert_eq!(res, Point::Pair { x, y });
 
-        let x2 = BigUint::parse_bytes(
+        let k2 = BigUint::parse_bytes(
             b"112233445566778899112233445566778899", 10).unwrap();
-        let y2 = BigUint::parse_bytes(
+        let x2 = BigUint::parse_bytes(
             b"E5A2636BCFD412EBF36EC45B19BFB68A1BC5F8632E678132B885F7DF99C5E9B3", 16).unwrap();
-        let res2 = secp256k1.dh_public_from_private(&x2);
-        match res2 {
-            Point::Inf => panic!("Incorrect result"),
-            Point::Pair {x: res_x, y: _res_y } => {
-                assert_eq!(res_x, y2);
-            }
-        }
+        let y2 = BigUint::parse_bytes(
+            b"736C1CE161AE27B405CAFD2A7520370153C2C861AC51D6C1D5985D9606B45F39", 16).unwrap();
+        let res2 = secp256k1.dh_public_from_private(&k2);
+        assert_eq!(res2, Point::Pair{ x: x2, y: y2 });
 
         // test size of cyclic group, must return point at infinity
         let n = BigUint::parse_bytes(
@@ -322,5 +317,37 @@ mod tests {
 
         let res3 = secp256k1.dh_public_from_private(&n);
         assert_eq!(res3, Point::Inf);
+    }
+
+    #[test]
+    fn test_dh() {
+        let secp256k1: EllipticCurve = EllipticCurve::new(
+            BigUint::new(vec!(0)),
+            BigUint::new(vec!(7)),
+            Point::Pair {
+                x: BigUint::parse_bytes(
+                    b"79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+                    16).unwrap(),
+                y: BigUint::parse_bytes(
+                    b"483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+                    16).unwrap() },
+            BigUint::parse_bytes(
+                b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", 16).unwrap());
+
+        let n = BigUint::parse_bytes(
+            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141", 16).unwrap();
+        let mut rng: ThreadRng = rand::thread_rng();
+        for _i in 0..10 {
+            let a = RandBigInt::gen_biguint_below(&mut rng, &n);
+            let pub_a = secp256k1.dh_public_from_private(&a);
+
+            let b = RandBigInt::gen_biguint_below(&mut rng, &n);
+            let pub_b = secp256k1.dh_public_from_private(&b);
+
+            let k_a = secp256k1.dh_derive_shared_secret(&a, &pub_b).unwrap();
+            let k_b = secp256k1.dh_derive_shared_secret(&b, &pub_a).unwrap();
+
+            assert_eq!(k_a, k_b);
+        }
     }
 }

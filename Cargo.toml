@@ -5,4 +5,5 @@ authors = ["Tom Conroy <tjc25614@outlook.com>"]
 edition = "2018"
 
 [dependencies]
-num-bigint = "0.2.2"
+rand = "0.5"
+num-bigint = { version = "0.2.2", features = ["rand"] }
