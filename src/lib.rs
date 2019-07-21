@@ -2,6 +2,7 @@ use num_bigint::BigUint;
 use num_bigint::BigInt;
 use num_bigint::Sign;
 use num_bigint::RandBigInt;
+use num_traits::{Zero, One};
 use rand::prelude::*;
 use std::mem;
 
@@ -42,7 +43,7 @@ impl EllipticCurve {
 
         if ((BigUint::new(vec!(4)) * ref_a * ref_a * ref_a) +
             (BigUint::new(vec!(27)) * ref_b * ref_b)) % ref_p
-            == BigUint::new(vec!(0)) {
+            == BigUint::zero() {
             panic!("Singular elliptic curve given");
         }
 
@@ -69,7 +70,7 @@ impl EllipticCurve {
                 let mut new_x = &delta * &delta;
                 let double_x = BigUint::new(vec!(2)) * x;
                 if double_x > new_x {
-                    new_x += ((&double_x / &self.p) + BigUint::new(vec!(1))) * &self.p;
+                    new_x += ((&double_x / &self.p) + BigUint::one()) * &self.p;
                 }
                 new_x -= double_x;
                 new_x %= &self.p;
@@ -152,13 +153,11 @@ impl EllipticCurve {
 /// Calculates x^-1 mod p such that x * x^-1 mod p = 1
 fn inverse_mod_p(x: BigUint, p: &BigUint) -> BigUint {
     let xmod_p = x % p;
-    let signed_zero = BigInt::new(Sign::NoSign, vec![0]);
-    let one = BigUint::new(vec!(1));
     let signed_p = BigInt::from_biguint(Sign::Plus, p.clone());
-    let mut last: (BigUint, BigInt) = (p.clone(), signed_zero.clone());
-    let mut current: (BigUint, BigInt) = (xmod_p, BigInt::new(Sign::Plus, vec![1]));
+    let mut last: (BigUint, BigInt) = (p.clone(), BigInt::zero());
+    let mut current: (BigUint, BigInt) = (xmod_p, BigInt::one());
     let mut next: (BigUint, BigInt);
-    while current.0 != one {
+    while current.0 != BigUint::one() {
         let q = &last.0 / &current.0;
         let r = &last.0 % &current.0;
         next = (r, last.1 - (BigInt::from_biguint(Sign::Plus, q) * &current.1));
@@ -166,7 +165,7 @@ fn inverse_mod_p(x: BigUint, p: &BigUint) -> BigUint {
     }
 
     let mut result = current.1;
-    while result < signed_zero {
+    while result < BigInt::one() {
         result += &signed_p;
     }
     result %= &signed_p;
@@ -183,12 +182,12 @@ mod tests {
         let p2 = Point::Inf;
         assert_eq!(p1, p2);
 
-        let p1 = Point::Pair { x: BigUint::new(vec![0]), y: BigUint::new(vec![0]) };
+        let p1 = Point::Pair { x: BigUint::zero(), y: BigUint::zero() };
         assert!(p1 != p2);
-        let p2 = Point::Pair { x: BigUint::new(vec![0]), y: BigUint::new(vec![0]) };
+        let p2 = Point::Pair { x: BigUint::zero(), y: BigUint::zero() };
         assert_eq!(p1, p2);
 
-        let p1 = Point::Pair { x: BigUint::new(vec![1]), y: BigUint::new(vec![0]) };
+        let p1 = Point::Pair { x: BigUint::one(), y: BigUint::zero() };
         assert!(p1 != p2);
         assert!(p1 != Point::Inf);
     }
@@ -197,7 +196,7 @@ mod tests {
     #[should_panic(expected = "g not on curve")]
     fn test_elliptic_cuve_constructor_bad_g() {
         // produce toy elliptic curve
-        let a = BigUint::new(vec!(1));
+        let a = BigUint::one();
         let b = BigUint::new(vec!(6));
         let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(3)) };
         let p = BigUint::new(vec!(11));
@@ -239,7 +238,7 @@ mod tests {
     #[test]
     fn test_point_double() {
         // produce toy elliptic curve
-        let a = BigUint::new(vec!(1));
+        let a = BigUint::one();
         let b = BigUint::new(vec!(6));
         let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
         let p = BigUint::new(vec!(11));
@@ -252,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_point_add() {
-        let a = BigUint::new(vec!(1));
+        let a = BigUint::one();
         let b = BigUint::new(vec!(6));
         let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
         let p = BigUint::new(vec!(11));
@@ -266,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_point_multiply() {
-        let a = BigUint::new(vec!(1));
+        let a = BigUint::one();
         let b = BigUint::new(vec!(6));
         let g = Point::Pair {x: BigUint::new(vec!(2)), y: BigUint::new(vec!(7)) };
         let p = BigUint::new(vec!(11));
@@ -283,7 +282,7 @@ mod tests {
     #[test]
     fn test_real_curve() {
         let secp256k1: EllipticCurve = EllipticCurve::new(
-            BigUint::new(vec!(0)),
+            BigUint::zero(),
             BigUint::new(vec!(7)),
             Point::Pair {
                 x: BigUint::parse_bytes(
@@ -322,7 +321,7 @@ mod tests {
     #[test]
     fn test_dh() {
         let secp256k1: EllipticCurve = EllipticCurve::new(
-            BigUint::new(vec!(0)),
+            BigUint::zero(),
             BigUint::new(vec!(7)),
             Point::Pair {
                 x: BigUint::parse_bytes(
