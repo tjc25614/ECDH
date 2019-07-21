@@ -339,14 +339,19 @@ mod tests {
         let mut rng: ThreadRng = rand::thread_rng();
         for _i in 0..10 {
             let a = RandBigInt::gen_biguint_below(&mut rng, &n);
+            println!("a: {}", a);
             let pub_a = secp256k1.dh_public_from_private(&a);
+            println!("pub a: {:?}", pub_a);
 
             let b = RandBigInt::gen_biguint_below(&mut rng, &n);
+            println!("b: {}", b);
             let pub_b = secp256k1.dh_public_from_private(&b);
+            println!("pub b: {:?}", pub_b);
 
             let k_a = secp256k1.dh_derive_shared_secret(&a, &pub_b).unwrap();
             let k_b = secp256k1.dh_derive_shared_secret(&b, &pub_a).unwrap();
-
+            println!("shared secret a: {}", k_a);
+            println!("shared secret b: {}", k_b);
             assert_eq!(k_a, k_b);
         }
     }
