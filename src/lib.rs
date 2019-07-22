@@ -61,6 +61,14 @@ impl EllipticCurve {
         }
     }
 
+    fn verify_point(&self, point: &Point) -> bool {
+        match point {
+            Point::Inf => true,
+            Point::Pair { x, y } =>
+                (y * y) % &self.p == ((x * x * x) + (&self.a * x) + &self.b) % &self.p,
+        }
+    }
+
     fn point_double(&self, point: &Point) -> Point {
         match point {
             Point::Inf => Point::Inf,
@@ -142,9 +150,12 @@ impl EllipticCurve {
     fn dh_derive_shared_secret( &self,
                                 private_key: &BigUint,
                                 other_public_key: &Point) -> Result<BigUint, &'static str> {
+        if !self.verify_point(other_public_key) {
+            return Err("Public key not on curve");
+        }
         match self.point_multiply(private_key, other_public_key) {
-            Point::Inf => Err(""),
-            Point::Pair{ x, y: _y } => Ok(x)
+            Point::Inf => Err("Shared secret is point at infinity"),
+            Point::Pair{ x, y: _y } => Ok(x),
         }
     }
 }
